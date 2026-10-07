@@ -1,8 +1,8 @@
 const PREFIX = `perfil-tienda:${encodeURIComponent(self.registration.scope)}:`;
-const CACHE = `${PREFIX}core-v13`;
+const CACHE = `${PREFIX}core-v14`;
 const DATA_CACHE = `${PREFIX}data-v2`;
 const urlFor = path => new URL(path, self.registration.scope).href;
-const CORE = ['./','index.html','styles.css','operational.css','app.js','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'].map(urlFor);
+const CORE = ['./','index.html','styles.css','operational.css','app.js','exports.js','exports.css','assets/vendor/pdf-lib-1.17.1.min.js','assets/vendor/jszip-3.10.1.min.js','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'].map(urlFor);
 const DATA_URLS = ['data/dashboard.json','data/audit.json'].map(urlFor);
 const SNAPSHOT = urlFor('data/.verified-snapshot');
 let refreshing;
@@ -85,5 +85,5 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
   if (DATA_URLS.includes(url.href)) event.respondWith(serveData(url.href));
-  else if (event.request.mode === 'navigate' || CORE.includes(url.href)) event.respondWith(serveAsset(event.request));
+  else if (event.request.mode === 'navigate' || CORE.includes(url.href) || url.href === urlFor('data/exports.json')) event.respondWith(serveAsset(event.request));
 });

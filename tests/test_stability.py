@@ -109,6 +109,7 @@ class StabilityTests(unittest.TestCase):
         audit = {"schemaVersion":2, "generatedAt":"same", "issueCount":0}
         (self.root / "data/dashboard.json").write_text(json.dumps(data))
         (self.root / "data/audit.json").write_text(json.dumps(audit))
+        (self.root / "data/exports.json").write_text(json.dumps({"schemaVersion":1,"generatedAt":"same","directoryPolicy":"open-only-v1"}))
 
     def test_stage_protects_engines_and_source_directories(self):
         self.site_fixture()

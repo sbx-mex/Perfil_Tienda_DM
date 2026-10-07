@@ -274,6 +274,7 @@
       fillOptions(firstVerified?.cc||'');
       if (!eventsBound) { bindEvents(); eventsBound=true; }
       renderAll();
+      globalThis.PerfilExports?.connect(() => ({data:state.data, audit:state.audit, scope:state.scope, selection:state.selection, pillar:state.pillar, productivity:state.productivity, offline}));
       $('sourceStatus').classList.toggle('ready',!offline);
       $('sourceStatus').querySelector('span').textContent=offline?'Última versión verificada · respaldo':`${state.data.months.length} meses validados${audit.warningCount?` · ${audit.warningCount} avisos`:''}`;
       $('sourceStatus').title=`Validación: ${data.generatedAt}${audit.warnings?.length?`\n${audit.warnings.join('\n')}`:''}`;

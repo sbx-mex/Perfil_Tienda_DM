@@ -1,0 +1,49 @@
+PERFIL DE TIENDA — EXPORTACIÓN POR PILAR
+
+Aplicar al repositorio sbx-mex/Perfil_Tienda_DM, versión base
+c6bffee487fd61e20b34d3957166aa0e14b177d8.
+
+1. Extraer este ZIP en la raíz del proyecto conservando las carpetas.
+   Incluye únicamente archivos nuevos/modificados y las librerías locales
+   necesarias. Sustituir los archivos existentes con el mismo nombre.
+2. Subir estos cambios a main. El workflow valida los motores, compila las
+   exportaciones con Python y publica el sitio mínimo en GitHub Pages.
+3. Cuando termine el despliegue, actualizar la página. Pulsar Exportar,
+   elegir Partner, Cliente, Negocio o Los 3 pilares, elegir periodo y PDF/Excel.
+
+El alcance se toma de la selección actual de Tienda, DM o Región. También
+se respeta IPLH/TPLH. El PDF tiene exactamente una página por pilar elegido.
+Excel tiene una hoja por pilar, dos gráficas nativas editables, fórmulas de
+resumen y detalle mensual con cobertura de tiendas para cada valor.
+
+Validación local (Python 3.12 y Node disponibles):
+  python -m pip install -r requirements-validation.txt
+  python scripts/build_data.py
+  python scripts/build_exports.py
+  python -m unittest discover -s tests -v
+  python scripts/stage_site.py --output dist
+  python -m http.server 8000 --directory dist
+
+Python prepara los cálculos. Las descargas se generan localmente en el
+navegador, sin enviar la selección a servicios externos y sin requerir un
+servidor Python en GitHub Pages. No abrir index.html mediante file://.
+
+Lectura del reporte:
+- Venta: suma. Rotación: último dato. Otros: promedio de meses disponibles.
+- DM/Región: promedio simple de tiendas con dato, excepto venta (suma).
+- Equipo: totales de Query con su fecha de corte; no depende del mes elegido.
+- AA = año anterior, PPTO = presupuesto, pp = puntos porcentuales.
+- Sin dato no equivale a cero. Sin comparación no recibe estado favorable.
+- Favorable depende de la dirección del indicador; no se fuerza todo a verde.
+- Las gráficas conservan todo el historial mensual; el resumen usa el periodo
+  elegido. En Excel la impresión cubre el resumen y las dos gráficas; el
+  detalle mensual permanece disponible debajo para filtrar y analizar.
+- Los motores actuales siguen teniendo tres avisos de origen. No se inventan
+  los presupuestos de Ticket que no están informados ni los meses faltantes.
+- Un reporte cuya construcción no coincide con el dashboard se bloquea.
+  Sin conexión puede exportarse después de haber cargado el reporte y sus
+  librerías; si falta ese respaldo se solicita reintentar con conexión.
+
+Compatibilidad prevista: navegadores modernos con dialog, Blob y fetch;
+Excel o LibreOffice para el XLSX. PDF vectorial con texto seleccionable.
+Librerías incluidas: pdf-lib 1.17.1 y JSZip 3.10.1, con sus licencias MIT.

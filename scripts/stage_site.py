@@ -10,9 +10,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-FILES = ("index.html", "styles.css", "operational.css", "app.js", "manifest.webmanifest", "sw.js")
-DATA = ("dashboard.json", "audit.json")
-ASSETS = ("icon.svg", "icon-192.png", "icon-512.png")
+FILES = ("index.html", "styles.css", "operational.css", "app.js", "exports.js", "exports.css", "manifest.webmanifest", "sw.js")
+DATA = ("dashboard.json", "audit.json", "exports.json")
+ASSETS = ("icon.svg", "icon-192.png", "icon-512.png", "vendor/pdf-lib-1.17.1.min.js", "vendor/pdf-lib-LICENSE.txt", "vendor/jszip-3.10.1.min.js", "vendor/jszip-LICENSE.txt")
 
 
 def copy_file(root: Path, staged: Path, relative: Path) -> None:
@@ -36,9 +36,13 @@ def stage(root: Path, output: Path) -> None:
         for name in ASSETS: copy_file(root, staged, Path("assets") / name)
         data = json.loads((staged / "data/dashboard.json").read_text(encoding="utf-8"))
         audit = json.loads((staged / "data/audit.json").read_text(encoding="utf-8"))
+        exports = json.loads((staged / "data/exports.json").read_text(encoding="utf-8"))
         if (data.get("schemaVersion") != 2 or audit.get("schemaVersion") != 2 or audit.get("issueCount") != 0
                 or not data.get("generatedAt") or data["generatedAt"] != audit.get("generatedAt")):
             raise ValueError("Dashboard y auditoría deben pertenecer a la misma construcción válida.")
+        if (exports.get("schemaVersion") != 1 or exports.get("generatedAt") != data["generatedAt"]
+                or exports.get("directoryPolicy") != "open-only-v1"):
+            raise ValueError("Exportaciones y dashboard deben pertenecer a la misma construcción válida.")
         (staged / ".nojekyll").touch()
         backup = Path(temporary) / "backup"
         if output.exists(): os.replace(output, backup)

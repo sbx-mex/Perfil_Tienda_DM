@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="operational.css" />
+  <link rel="stylesheet" href="exports.css" />
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +18,7 @@
       <img src="assets/icon.svg" alt="" width="42" height="42" />
       <span><small>STARBUCKS MÉXICO</small><strong>Perfil de Tienda</strong></span>
     </a>
-    <div class="source-status" id="sourceStatus" aria-live="polite"><i></i><span>Cargando motores…</span></div>
+    <div class="topbar-actions"><div class="source-status" id="sourceStatus" aria-live="polite"><i></i><span>Cargando motores…</span></div><button type="button" class="export-button" id="openExport" disabled aria-haspopup="dialog">↓ Exportar</button></div>
   </header>
 
   <main class="page-shell">
@@ -60,6 +61,15 @@
   </main>
 
   <noscript>Este dashboard requiere JavaScript para procesar los motores.</noscript>
+  <dialog id="exportDialog" aria-labelledby="exportTitle">
+    <div class="export-dialog-head"><div><span class="eyebrow">LÁMINAS DEL PERFIL</span><h2 id="exportTitle">Lleva los datos contigo</h2></div><button type="button" id="closeExport" class="export-close" aria-label="Cerrar">×</button></div>
+    <p id="exportContext"></p>
+    <div class="export-fields"><label>Pilar<select id="exportPillar"><option>Partner</option><option>Cliente</option><option>Negocio</option><option value="all">Los 3 pilares</option></select></label><label>Periodo<select id="exportPeriod"></select></label></div>
+    <p class="export-note">Una lámina por pilar en PDF. Excel con resumen, gráficas editables y detalle mensual. Se respetan el alcance seleccionado y la productividad IPLH / TPLH.</p>
+    <div class="export-downloads"><button type="button" id="downloadPdf"><strong>↓ PDF</strong><span>Láminas para presentar</span></button><button type="button" id="downloadExcel"><strong>↓ Excel</strong><span>Indicadores para analizar</span></button></div>
+    <p id="exportMessage" role="status" aria-live="polite"></p>
+  </dialog>
+  <script src="exports.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
