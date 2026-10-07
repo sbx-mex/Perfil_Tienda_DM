@@ -10,12 +10,13 @@ Se permiten más o menos filas, CeCos y meses. No repitas una misma combinación
 Mantén los encabezados de métricas. `-100%` comparativo significa “No aplica” y se convierte a blanco.
 DT se interpreta como `mm:ss`; valores fuera del rango operativo de 00:20 a 30:00 quedan en blanco y se auditan como atípicos.
 Base_Perfil Tienda.csv y Base_Perfil Tienda_2.csv
-Exportación UTF-16 del reporte original.
-El pipeline busca el encabezado real que comienza con `Mes` aunque existan líneas de título.
+Exportación UTF-16 con BOM o UTF-8 del reporte original; separador coma, punto y coma o tabulador.
+El pipeline busca el encabezado real que contiene `Mes` y `Tiendas` aunque existan líneas de título o cambie el orden de las columnas. Los encabezados duplicados y las filas incompletas cancelan la construcción.
 `Mes` usa `YYYYMM`; `Tiendas` contiene el CeCo.
 Se validan y cruzan por separado. Aumentar o disminuir tiendas no requiere cambios de código.
-`Base_Perfil Tienda_2.csv` debe conservar: `ADT Real`, `Venta $`, `Var Ventas vs Ppto (%)`, `AWS $`, `Ticket Prom Real`, `Ticket Prom AA`, `Ticket Prom Ppto`, `Var Ticket vs AA (%)` y `Var Ticket vs Ppto (%)`.
-Ticket se grafica con tres series verificadas: Real, AA y PPTO. Si falta cualquiera de estos encabezados, el build se detiene antes de publicar.
+`Base_Perfil Tienda_2.csv` debe conservar: `ADT Real`, `Venta $`, `Var Ventas vs Ppto (%)`, `AWS $`, `Ticket Prom Real`, `Ticket Prom AA` y `Var Ticket vs AA (%)`.
+`Ticket Prom Ppto` y `Var Ticket vs Ppto (%)` son referencias opcionales. Cuando no se exportan, quedan en blanco y se registra una advertencia; no se inventan valores ni se detiene la publicación de los datos disponibles. Si se incluyen, se conservan sus comparativos.
+Sólo se publica el año más reciente con periodos válidos y tiendas del Directorio. Las filas de otros años se reportan y no se mezclan con el año seleccionado. Las claves duplicadas del mismo motor y periodo siguen siendo un error bloqueante.
 Directorio_Perfil Tienda.csv
 Codificación UTF-8 y llave única `CC` de cinco dígitos.
 Actualiza altas/bajas aquí primero. Los filtros Tienda, DM y Región se generan dinámicamente.
@@ -36,3 +37,4 @@ python scripts/build_data.py
 python -m unittest discover -s tests -v
 ```
 El resultado aceptable es: cero errores bloqueantes, archivos menores a 25 MB y todas las pruebas en `OK`. Las advertencias son trazables en `data/audit.json`.
+En GitHub, selecciona **Settings → Pages → Build and deployment → Source: GitHub Actions** y ejecuta **Validar y publicar Perfil de Tienda**. Así se publica el artefacto validado de `dist`, sin depender de los JSON antiguos guardados en la rama. No selecciones publicación directa desde una rama.

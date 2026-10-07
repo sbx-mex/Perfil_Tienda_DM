@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import math
 import os
@@ -38,7 +39,7 @@ def clean_cc(value: Any) -> str:
     text = str(value or "").strip()
     if text.endswith(".0"): text = text[:-2]
     digits = re.sub(r"\D", "", text)
-    return digits[-5:].zfill(5) if digits else ""
+    return digits.zfill(5) if 1 <= len(digits) <= 5 else ""
 
 
 def clean_header(value: Any) -> str:
@@ -117,10 +118,31 @@ def load_csv(path: Path, encoding: str = "utf-8-sig") -> list[dict[str, str]]:
 
 
 def load_export_csv(path: Path) -> list[dict[str, str]]:
-    lines = path.read_text(encoding="utf-16").splitlines()
-    try: start = next(index for index, line in enumerate(lines) if line.startswith('"Mes","'))
-    except StopIteration as error: raise ValueError(f"No se encontró encabezado real en {path.name}") from error
-    return list(csv.DictReader(lines[start:]))
+    raw = path.read_bytes()
+    encoding = "utf-16" if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
+    try: text = raw.decode(encoding)
+    except UnicodeError as error: raise ValueError(f"Codificación inválida en {path.name}; usa UTF-8 o UTF-16 con BOM") from error
+    for delimiter in (",", ";", "\t"):
+        reader = csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True)
+        found_header = False
+        try:
+            for fields in reader:
+                headers = [clean_header(value) for value in fields]
+                if not {"Mes", "Tiendas"}.issubset(headers): continue
+                found_header = True
+                if len(headers) != len(set(headers)) or not all(headers):
+                    raise ValueError(f"Encabezados vacíos o duplicados en {path.name}")
+                rows = []
+                for fields in reader:
+                    if not any(value.strip() for value in fields): continue
+                    if len(fields) != len(headers):
+                        raise ValueError(f"Fila CSV incompleta en {path.name}, línea {reader.line_num}")
+                    rows.append(dict(zip(headers, fields)))
+                return rows
+        except csv.Error as error:
+            if not found_header: continue
+            raise ValueError(f"CSV inválido en {path.name}: {error}") from error
+    raise ValueError(f"No se encontró encabezado Mes + Tiendas en {path.name}")
 
 
 def month_from_profile(value: Any) -> int | None:
@@ -142,7 +164,60 @@ def month_from_period(value: Any) -> int | None:
 
 def year_from_period(value: Any) -> int | None:
     text = str(value or "").strip()
-    return int(text[:4]) if re.fullmatch(r"20\d{4}", text) else None
+    return int(text[:4]) if month_from_period(text) is not None else None
+
+
+def load_business(paths: dict[str, Path], valid_cc: Iterable[str], warnings: list[str]) -> tuple[dict, dict]:
+    valid_cc = set(valid_cc)
+    inputs = {name: load_export_csv(paths[name]) for name in ("business_aa", "business_real")}
+    required = {
+        "business_aa": {"Mes", "Tiendas", "ADT AA", "OMT"},
+        "business_real": {"Mes", "Tiendas", "ADT Real", "Venta $", "Var Ventas vs Ppto (%)", "AWS $", "Ticket Prom Real", "Ticket Prom AA", "Var Ticket vs AA (%)"},
+    }
+    for name, rows in inputs.items():
+        headers = set(rows[0]) if rows else set()
+        if missing := required[name] - headers:
+            raise ValueError(f"{paths[name].name} sin encabezados requeridos: {sorted(missing)}")
+    real_headers = list(inputs["business_real"][0])
+    optional_missing = sorted({"Ticket Prom Ppto", "Var Ticket vs Ppto (%)"} - set(real_headers))
+    if optional_missing:
+        warnings.append(f"Ticket: referencias opcionales ausentes ({', '.join(optional_missing)}); se muestran en blanco.")
+
+    years = Counter(year_from_period(row.get("Mes")) for rows in inputs.values() for row in rows
+                    if year_from_period(row.get("Mes")) is not None and clean_cc(row.get("Tiendas")) in valid_cc)
+    if not years: raise ValueError("Negocio no contiene periodos válidos para tiendas del Directorio")
+    selected_year = max(years)
+    ignored = Counter(); unmatched = Counter(); months = Counter(); seen = set()
+    business = defaultdict(dict)
+    for name, rows in inputs.items():
+        for row in rows:
+            month = month_from_period(row.get("Mes")); year = year_from_period(row.get("Mes")); cc = clean_cc(row.get("Tiendas"))
+            if month is None or not cc: continue
+            if cc not in valid_cc: unmatched[cc] += 1; continue
+            if year != selected_year: ignored[year] += 1; continue
+            key = (cc, month, name)
+            if key in seen: raise ValueError(f"Negocio duplicado: {cc}, periodo {year}{month:02d}, motor {name}")
+            seen.add(key)
+            target = business[cc].setdefault(str(month), {})
+            if name == "business_aa":
+                target.update({"adtAa": round_number(number(row.get("ADT AA"))), "omtDiff": round_number(number(row.get("OMT")))})
+            else:
+                sales = number(row.get("Venta $")); variance = number(row.get("Var Ventas vs Ppto (%)"), percent=True)
+                budget = sales / (1 + variance) if sales is not None and variance is not None and not math.isclose(variance, -1) else None
+                target.update({
+                    "adt": round_number(number(row.get("ADT Real"))), "sales": round_number(sales, 2),
+                    "salesBudget": round_number(budget, 2), "salesVariance": round_number(variance),
+                    "aws": round_number(number(row.get("AWS $")), 2), "ticket": round_number(number(row.get("Ticket Prom Real")), 2),
+                    "ticketAa": round_number(number(row.get("Ticket Prom AA")), 2),
+                    "ticketBudget": round_number(number(row.get("Ticket Prom Ppto")), 2),
+                    "ticketVariance": round_number(number(row.get("Var Ticket vs AA (%)"), percent=True)),
+                    "ticketBudgetVariance": round_number(number(row.get("Var Ticket vs Ppto (%)"), percent=True)),
+                })
+            months[month] += 1
+    if ignored: warnings.append(f"Negocio: se seleccionó {selected_year}; {sum(ignored.values())} filas de otros años no se mezclaron.")
+    return business, {"matchedStores": len(business), "months": dict(months), "years": dict(years),
+                      "selectedYear": selected_year, "ignoredYears": dict(ignored), "unmatched": dict(unmatched),
+                      "realHeaders": real_headers, "optionalMissingHeaders": optional_missing}
 
 
 def metric_format(header: str) -> str:
@@ -315,47 +390,7 @@ def build(root: Path, output: Path, audit_output: Path) -> tuple[dict[str, Any],
             values.append(round_number(value))
         profile[cc][str(month)] = values
 
-    business: defaultdict[str, dict[str, dict[str, float | None]]] = defaultdict(dict)
-    business_unmatched = Counter(); business_duplicates = Counter(); business_months = Counter(); business_years = Counter()
-    business_inputs = {name: load_export_csv(paths[name]) for name in ("business_aa", "business_real")}
-    business_real_headers = list(business_inputs["business_real"][0]) if business_inputs["business_real"] else []
-    required_business = {
-        "business_aa": {"Mes", "Tiendas", "ADT AA", "OMT"},
-        "business_real": {"Mes", "Tiendas", "ADT Real", "Venta $", "Var Ventas vs Ppto (%)", "AWS $", "Ticket Prom Real", "Ticket Prom AA", "Ticket Prom Ppto", "Var Ticket vs AA (%)", "Var Ticket vs Ppto (%)"},
-    }
-    for source_name, rows in business_inputs.items():
-        source_headers = set(rows[0]) if rows else set()
-        if missing := required_business[source_name].difference(source_headers):
-            raise ValueError(f"{paths[source_name].name} sin encabezados requeridos: {sorted(missing)}")
-    business_seen: set[tuple[str, int, str]] = set()
-    for source_name, rows in business_inputs.items():
-        for row in rows:
-            month = month_from_period(row.get("Mes")); year = year_from_period(row.get("Mes")); cc = clean_cc(row.get("Tiendas"))
-            if month is None or not cc: continue
-            if year is not None: business_years[year] += 1
-            if cc not in directory_by_cc:
-                business_unmatched[cc] += 1; continue
-            target = business[cc].setdefault(str(month), {})
-            source_key = (cc, month, source_name)
-            if source_key in business_seen:
-                business_duplicates[f"{cc}-{month}-{source_name}"] += 1
-                continue
-            business_seen.add(source_key)
-            if source_name == "business_aa":
-                target.update({"adtAa": round_number(number(row.get("ADT AA"))), "omtDiff": round_number(number(row.get("OMT")))})
-            else:
-                sales = number(row.get("Venta $")); variance = number(row.get("Var Ventas vs Ppto (%)"), percent=True)
-                budget = sales / (1 + variance) if sales is not None and variance is not None and not math.isclose(variance, -1) else None
-                target.update({
-                    "adt": round_number(number(row.get("ADT Real"))), "sales": round_number(sales, 2),
-                    "salesBudget": round_number(budget, 2), "salesVariance": round_number(variance),
-                    "aws": round_number(number(row.get("AWS $")), 2), "ticket": round_number(number(row.get("Ticket Prom Real")), 2),
-                    "ticketAa": round_number(number(row.get("Ticket Prom AA")), 2),
-                    "ticketBudget": round_number(number(row.get("Ticket Prom Ppto")), 2),
-                    "ticketVariance": round_number(number(row.get("Var Ticket vs AA (%)"), percent=True)),
-                    "ticketBudgetVariance": round_number(number(row.get("Var Ticket vs Ppto (%)"), percent=True)),
-                })
-            business_months[month] += 1
+    business, business_audit = load_business(paths, directory_by_cc, warnings)
 
     alias_to_cc = {alias: next(iter(ccs)) for alias, ccs in aliases.items() if len(ccs) == 1}
     mix: defaultdict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
@@ -438,26 +473,25 @@ def build(root: Path, output: Path, audit_output: Path) -> tuple[dict[str, Any],
         coverage.append({"cc": cc, "profile": cc in profile, "business": cc in business, "mix": cc in mix, "partners": cc in partners})
     for count, message in (
         (len(profile_unmatched), "Perfil: {count} CeCo sin cruce; se dejaron en blanco."),
-        (len(business_unmatched), "Negocio: {count} CeCo sin cruce; se dejaron en blanco."),
+        (len(business_audit["unmatched"]), "Negocio: {count} CeCo sin cruce; se dejaron en blanco."),
         (len(mix_unmatched), "Mix: {count} nombres sin coincidencia exacta única; se dejaron en blanco."),
         (len(partner_unmatched), "Query: {count} CeCo sin cruce; se dejaron en blanco."),
     ):
         if count: warnings.append(message.format(count=count))
-    if business_duplicates: issues.append(f"Negocio contiene {sum(business_duplicates.values())} claves duplicadas")
 
     audit = {
         "schemaVersion": 2, "generatedAt": datetime.now(UTC).isoformat(), "issueCount": len(issues), "warningCount": len(warnings),
         "issues": issues, "warnings": warnings, "sources": sources,
         "directory": {"rows": len(directory_rows), "validStores": len(directory)},
         "profile": {"rows": profile_sheet.max_row - 1, "matchedStores": len(profile), "months": dict(profile_months), "monthHeader": headers[month_column], "ccHeader": headers[cc_column], "minus100Blanked": dict(minus_100_blanked), "durationOutliersBlanked": dict(duration_blanked), "unmatched": dict(profile_unmatched)},
-        "business": {"matchedStores": len(business), "months": dict(business_months), "years": dict(business_years), "unmatched": dict(business_unmatched), "realHeaders": business_real_headers},
+        "business": business_audit,
         "mix": {"sourceRows": mix_rows, "manifestRows": mix_manifest.get("rows"), "parts": len(mix_paths), "months": dict(mix_months), "matchedRows": mix_matched_rows, "matchedStores": len(mix), "invalidRows": mix_invalid_sales, "unmatchedNames": len(mix_unmatched), "unmatchedTop": dict(mix_unmatched.most_common(100))},
         "partners": {"uniqueEmployees": len(employees), "matchedStores": len(partners), "unmatched": dict(partner_unmatched)},
         "coverage": coverage,
     }
     if issues: raise ValueError(" | ".join(issues))
 
-    display_year = max(business_years) if business_years else datetime.now(UTC).year
+    display_year = business_audit["selectedYear"]
     payload = {
         "schemaVersion": 2, "generatedAt": audit["generatedAt"],
         "months": [{"id": month, "period": f"{display_year}{month:02d}", "label": MONTH_LABELS[month - 1], "short": MONTH_LABELS[month - 1][:3]} for month in all_months],

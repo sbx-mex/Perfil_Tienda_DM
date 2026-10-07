@@ -245,22 +245,41 @@
     $('profileSearch').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();if(resolveSearch())renderAll();}});
   }
 
-  async function start() {
+  let starting=false, eventsBound=false;
+  async function loadContract() {
+    const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),18000);
     try {
-      const [dataResponse,auditResponse]=await Promise.all([fetch('data/dashboard.json',{cache:'no-store'}),fetch('data/audit.json',{cache:'no-store'})]);
+      const [dataResponse,auditResponse]=await Promise.all(['data/dashboard.json','data/audit.json'].map(url=>fetch(url,{cache:'no-store',signal:controller.signal})));
       if (!dataResponse.ok || !auditResponse.ok) throw new Error(`No fue posible cargar los motores (${dataResponse.status}/${auditResponse.status}).`);
-      state.data=await dataResponse.json(); state.audit=await auditResponse.json();
-      if (state.data.schemaVersion!==2 || state.audit.issueCount) throw new Error('El contrato de datos no superó la auditoría.');
+      const [data,audit]=await Promise.all([dataResponse.json(),auditResponse.json()]);
+      if (data?.schemaVersion!==2 || audit?.schemaVersion!==2 || audit.issueCount!==0 || !data.generatedAt || data.generatedAt!==audit.generatedAt || !Array.isArray(data.directory) || !data.directory.length || !Array.isArray(data.months) || !data.months.length || !Array.isArray(data.graphs) || !Array.isArray(data.metricHeaders) || ['profile','business','mix','partners'].some(key=>!data[key] || typeof data[key]!=='object')) throw new Error('Los datos y su auditoría no forman una versión válida. Reintenta cuando termine la actualización.');
+      return {data,audit,offline:[dataResponse,auditResponse].some(response=>response.headers.get('X-Perfil-Offline')==='1')};
+    } catch(error) {
+      if (error.name==='AbortError') throw new Error('La carga tardó demasiado. Comprueba tu conexión y reintenta.');
+      throw error;
+    } finally { clearTimeout(timeout); }
+  }
+  async function start() {
+    if (starting) return;
+    starting=true;
+    $('sourceStatus').classList.remove('ready'); $('sourceStatus').querySelector('span').textContent='Cargando motores…';
+    try {
+      const {data,audit,offline}=await loadContract();
+      state.data=data; state.audit=audit;
       state.data.directory.sort((a,b)=>a.cc.localeCompare(b.cc));
       const firstVerified=state.data.directory.find(item=>state.data.profile[item.cc]||state.data.business[item.cc]);
       fillOptions(firstVerified?.cc||'');
-      $('sourceStatus').classList.add('ready'); $('sourceStatus').querySelector('span').textContent=`${state.data.months.length} meses validados`;
-      bindEvents(); renderAll();
-      if ('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+      if (!eventsBound) { bindEvents(); eventsBound=true; }
+      renderAll();
+      $('sourceStatus').classList.toggle('ready',!offline);
+      $('sourceStatus').querySelector('span').textContent=offline?'Última versión verificada · respaldo':`${state.data.months.length} meses validados${audit.warningCount?` · ${audit.warningCount} avisos`:''}`;
+      $('sourceStatus').title=`Validación: ${data.generatedAt}${audit.warnings?.length?`\n${audit.warnings.join('\n')}`:''}`;
     } catch (error) {
       console.error(error); $('sourceStatus').querySelector('span').textContent='Error de carga';
-      $('profileHero').classList.remove('skeleton'); $('profileHero').innerHTML=`<div class="error-panel"><h2>No se pudo abrir el perfil</h2><p>${escapeHtml(error instanceof Error?error.message:'Error inesperado')}</p></div>`;
-    }
+      $('profileHero').classList.remove('skeleton'); $('profileHero').innerHTML=`<div class="error-panel"><h2>No se pudo abrir el perfil</h2><p>${escapeHtml(error instanceof Error?error.message:'Error inesperado')}</p><button type="button" class="text-button" id="retryLoad">Reintentar carga</button></div>`;
+      $('retryLoad').addEventListener('click',start);
+    } finally { starting=false; }
   }
+  if ('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
   start();
 })();

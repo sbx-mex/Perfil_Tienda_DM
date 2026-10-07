@@ -86,8 +86,9 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(oversized,[])
 
     def test_static_javascript_is_valid(self):
-        completed=subprocess.run(["node","--check",str(ROOT/"app.js")],capture_output=True,text=True)
-        self.assertEqual(completed.returncode,0,completed.stderr)
+        for name in ("app.js", "sw.js"):
+            completed=subprocess.run(["node","--check",str(ROOT/name)],capture_output=True,text=True)
+            self.assertEqual(completed.returncode,0,completed.stderr)
 
     def test_html_uses_local_assets_only(self):
         class Collector(HTMLParser):
@@ -107,10 +108,15 @@ class PipelineTests(unittest.TestCase):
             self.assertIn(label,html)
 
     def test_ticket_supports_aa_and_budget(self):
-        self.assertIn("Ticket Prom Ppto",self.audit["business"]["realHeaders"])
-        self.assertIn("Var Ticket vs Ppto (%)",self.audit["business"]["realHeaders"])
         rows=[row for months in self.payload["business"].values() for row in months.values()]
-        self.assertTrue(any(row.get("ticketBudget") is not None for row in rows))
+        self.assertTrue(any(row.get("ticket") is not None for row in rows))
+        self.assertTrue(any(row.get("ticketAa") is not None for row in rows))
+        for header,key in (("Ticket Prom Ppto","ticketBudget"),("Var Ticket vs Ppto (%)","ticketBudgetVariance")):
+            if header not in self.audit["business"]["realHeaders"]:
+                self.assertIn(header,self.audit["business"]["optionalMissingHeaders"])
+                self.assertTrue(all(row.get(key) is None for row in rows))
+            else:
+                self.assertTrue(any(row.get(key) is not None for row in rows))
         app=(ROOT/"app.js").read_text(encoding="utf-8")
         self.assertIn("secondaryReference:'ticketBudget'",app)
 
