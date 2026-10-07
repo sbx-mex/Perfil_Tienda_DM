@@ -1,6 +1,6 @@
 const PREFIX = `perfil-tienda:${encodeURIComponent(self.registration.scope)}:`;
-const CACHE = `${PREFIX}core-v12`;
-const DATA_CACHE = `${PREFIX}data-v1`;
+const CACHE = `${PREFIX}core-v13`;
+const DATA_CACHE = `${PREFIX}data-v2`;
 const urlFor = path => new URL(path, self.registration.scope).href;
 const CORE = ['./','index.html','styles.css','operational.css','app.js','manifest.webmanifest','assets/icon.svg','assets/icon-192.png','assets/icon-512.png'].map(urlFor);
 const DATA_URLS = ['data/dashboard.json','data/audit.json'].map(urlFor);
@@ -10,8 +10,10 @@ let refreshing;
 function validPair(pair) {
   return pair?.dashboard?.schemaVersion === 2 && pair?.audit?.schemaVersion === 2 &&
     pair.audit.issueCount === 0 && typeof pair.dashboard.generatedAt === 'string' &&
+    pair.dashboard.directoryPolicy === 'open-only-v1' &&
     pair.dashboard.generatedAt.length > 0 && pair.dashboard.generatedAt === pair.audit.generatedAt &&
     Array.isArray(pair.dashboard.directory) && pair.dashboard.directory.length > 0 &&
+    pair.dashboard.directory.every(item => item.status === 'Abierta') &&
     Array.isArray(pair.dashboard.months) && pair.dashboard.months.length > 0 &&
     Array.isArray(pair.dashboard.graphs) && Array.isArray(pair.dashboard.metricHeaders) &&
     ['profile','business','mix','partners'].every(key => pair.dashboard[key] && typeof pair.dashboard[key] === 'object');

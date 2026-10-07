@@ -10,7 +10,7 @@ const fastTimeout = (fn, delay) => setTimeout(fn, delay >= 8000 ? 5 : delay);
 const json = (value, headers={}) => new Response(JSON.stringify(value), {headers:{'Content-Type':'application/json', ...headers}});
 function pair() {
   return {
-    dashboard:{schemaVersion:2, generatedAt:'2026-10-07T00:00:00Z', directory:[{cc:'38101',store:'Tienda de prueba',opened:null}], months:[{id:1,label:'Enero',short:'Ene'}], graphs:[],metricHeaders:[],profile:{},business:{},mix:{},partners:{}},
+    dashboard:{schemaVersion:2, generatedAt:'2026-10-07T00:00:00Z', directoryPolicy:'open-only-v1', directory:[{cc:'38101',status:'Abierta',store:'Tienda de prueba',opened:null}], months:[{id:1,label:'Enero',short:'Ene'}], graphs:[],metricHeaders:[],profile:{},business:{},mix:{},partners:{}},
     audit:{schemaVersion:2,generatedAt:'2026-10-07T00:00:00Z',issueCount:0,warningCount:0,warnings:[]}
   };
 }
@@ -55,7 +55,7 @@ test('concurrent data requests share one verified dashboard/audit snapshot',asyn
   assert.equal(w.calls,2);
   assert.deepEqual(await responses[0].json(),expected.dashboard);
   assert.deepEqual(await responses[1].json(),expected.audit);
-  assert.equal(w.storage.get(`${PREFIX}data-v1`).size,1);
+  assert.equal(w.storage.get(`${PREFIX}data-v2`).size,1);
 });
 
 test('HTTP errors, invalid JSON, failed audit and mixed builds cannot overwrite a valid snapshot',async()=>{
@@ -88,8 +88,16 @@ test('installation saves verified data for offline use after the first visit',as
 });
 
 test('corrupt cached JSON cannot be presented as verified data',async()=>{
-  const w=worker(); const cache=await w.caches.open(`${PREFIX}data-v1`);
+  const w=worker(); const cache=await w.caches.open(`${PREFIX}data-v2`);
   await cache.put(`${SCOPE}data/.verified-snapshot`,new Response('corrupt'));
+  w.network=async()=>{throw new Error('Offline');};
+  assert.equal((await w.dispatch('data/dashboard.json')).status,503);
+});
+
+test('cache created before the open-store filter cannot reintroduce closed stores',async()=>{
+  const w=worker(), old=pair(); old.dashboard.directory[0].status='Cierre Temporal'; delete old.dashboard.directoryPolicy;
+  const cache=await w.caches.open(`${PREFIX}data-v1`);
+  await cache.put(`${SCOPE}data/.verified-snapshot`,json(old));
   w.network=async()=>{throw new Error('Offline');};
   assert.equal((await w.dispatch('data/dashboard.json')).status,503);
 });
@@ -108,10 +116,10 @@ test('cache quota failures do not reject valid network data',async()=>{
 
 test('activation preserves other applications caches and this applications verified data',async()=>{
   const w=worker();
-  for (const name of ['another-app',`${PREFIX}core-v11`,`${PREFIX}data-v1`,'perfil-tienda:another-scope:core-v11']) await w.caches.open(name);
+  for (const name of ['another-app',`${PREFIX}core-v11`,`${PREFIX}data-v2`,'perfil-tienda:another-scope:core-v11']) await w.caches.open(name);
   await w.lifecycle('install'); await w.lifecycle('activate');
   assert.equal(w.storage.has(`${PREFIX}core-v11`),false);
-  for (const name of ['another-app',`${PREFIX}data-v1`,'perfil-tienda:another-scope:core-v11']) assert.equal(w.storage.has(name),true);
+  for (const name of ['another-app',`${PREFIX}data-v2`,'perfil-tienda:another-scope:core-v11']) assert.equal(w.storage.has(name),true);
   assert.equal(w.claimed,true); assert.equal(w.skipped,true);
 });
 
@@ -134,17 +142,18 @@ function app(network) {
     if (!nodes.has(id)) {
       const classes=new Set(), listeners={};
       nodes.set(id,{innerHTML:'',textContent:'',value:'',dataset:{},listeners,
-        classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),toggle:(name,value)=>value?classes.add(name):classes.delete(name)},
+        classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),toggle:(name,value)=>value?classes.add(name):classes.delete(name),contains:name=>classes.has(name)},
         addEventListener:(name,handler)=>{(listeners[name]??=[]).push(handler);},setAttribute:()=>{},querySelectorAll:()=>[],querySelector:()=>element(`${id}:span`)});
     }
     return nodes.get(id);
   };
   const environment={network, calls:0};
+  const scopeButtons=['store','dm','region'].map(scope=>{const button=element(`scope:${scope}`);button.dataset.scope=scope;return button;});
   const context=vm.createContext({URL,Request,Response,AbortController,setTimeout:fastTimeout,clearTimeout,
     fetch:(...args)=>{environment.calls++;return environment.network(...args);},
     console:{error:error=>errors.push(error)},location:{protocol:'https:'},
     navigator:{serviceWorker:{register:async url=>{registrations.push(url);}}},
-    document:{getElementById:element,querySelectorAll:()=>[],querySelector:()=>null}
+    document:{getElementById:element,querySelectorAll:selector=>selector==='[data-scope]'?scopeButtons:[],querySelector:()=>null}
   });
   vm.runInContext(fs.readFileSync(path.join(ROOT,'app.js'),'utf8'),context);
   environment.element=element; environment.errors=errors; environment.registrations=registrations;
@@ -160,6 +169,44 @@ test('application renders a valid contract and marks cached fallback visibly',as
   const a=app(pairNetwork(pair(),true));
   await waitFor(()=>a.element('sourceStatus:span').textContent.includes('respaldo'));
   assert.match(a.element('profileHero').innerHTML,/38101/); assert.equal(a.errors.length,0);
+});
+
+test('application is green only after a verified open-store contract has rendered',async()=>{
+  const a=app(pairNetwork(pair()));
+  await waitFor(()=>a.element('sourceStatus:span').textContent.includes('meses validados'));
+  assert.equal(a.element('sourceStatus').classList.contains('ready'),true);
+  const closed=pair(); closed.dashboard.directory[0].status='Cierre Definitivo';
+  const b=app(pairNetwork(closed)); await waitFor(()=>b.errors.length);
+  assert.equal(b.element('sourceStatus').classList.contains('ready'),false);
+});
+
+test('partner averages and gender shares use only records with the corresponding information',async()=>{
+  const value=pair(); value.dashboard.directory=[{cc:'38101',store:'Uno',status:'Abierta',dm:'Grupo'},{cc:'38103',store:'Dos',status:'Abierta',dm:'Grupo'}];
+  value.dashboard.engineInfo={partners:{asOf:'2026-08-30'}};
+  value.dashboard.partners={
+    '38101':{headcount:2,female:1,male:0,genderKnownCount:1,ageCount:1,ageTotal:20,tenureCount:1,tenureTotalMonths:12,roles:{}},
+    '38103':{headcount:100,female:0,male:1,genderKnownCount:1,ageCount:1,ageTotal:40,tenureCount:1,tenureTotalMonths:36,roles:{}}
+  };
+  const a=app(pairNetwork(value)); await waitFor(()=>a.element('sourceStatus').classList.contains('ready'));
+  a.element('scope:dm').listeners.click[0]();
+  const panel=a.element('partnerPanel').innerHTML;
+  assert.match(panel,/Edad media<\/small><strong>30\.0/);
+  assert.match(panel,/2\.0 años/); assert.match(panel,/50\.0%/); assert.match(panel,/30.*ago.*2026/);
+});
+
+test('a store without Query information displays unavailable values instead of zero staff',async()=>{
+  const a=app(pairNetwork(pair())); await waitFor(()=>a.element('sourceStatus').classList.contains('ready'));
+  assert.match(a.element('partnerPanel').innerHTML,/panel-total">—<small>partners/);
+  assert.match(a.element('profileHero').innerHTML,/Partners<\/small><strong>—/);
+});
+
+test('current generated motors render together in the application with green load status',async()=>{
+  const value={dashboard:JSON.parse(fs.readFileSync(path.join(ROOT,'data/dashboard.json'),'utf8')),audit:JSON.parse(fs.readFileSync(path.join(ROOT,'data/audit.json'),'utf8'))};
+  const a=app(pairNetwork(value)); await waitFor(()=>a.element('sourceStatus').classList.contains('ready') || a.errors.length);
+  assert.equal(a.errors.length,0);
+  assert.equal(a.element('sourceStatus').classList.contains('ready'),true);
+  assert.match(a.element('partnerPanel').innerHTML,/Partners activos al/);
+  assert.match(a.element('mixPanel').innerHTML,/Meses con datos:/);
 });
 
 test('application rejects mixed builds and registers recovery worker even after a failed load',async()=>{

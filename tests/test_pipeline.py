@@ -69,6 +69,8 @@ class PipelineTests(unittest.TestCase):
 
     def test_only_verified_keys_are_emitted(self):
         valid_cc={item["cc"] for item in self.payload["directory"]}
+        self.assertEqual(self.payload["directoryPolicy"], "open-only-v1")
+        self.assertTrue(all(item["status"]=="Abierta" and item["store"] for item in self.payload["directory"]))
         for name in ("profile","business","mix","partners"):
             self.assertTrue(set(self.payload[name]).issubset(valid_cc),name)
 

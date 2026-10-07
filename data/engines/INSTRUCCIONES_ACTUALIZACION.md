@@ -19,6 +19,9 @@ Se validan y cruzan por separado. Aumentar o disminuir tiendas no requiere cambi
 Sólo se publica el año más reciente con periodos válidos y tiendas del Directorio. Las filas de otros años se reportan y no se mezclan con el año seleccionado. Las claves duplicadas del mismo motor y periodo siguen siendo un error bloqueante.
 Directorio_Perfil Tienda.csv
 Codificación UTF-8 y llave única `CC` de cinco dígitos.
+Se requiere `Estatus`: sólo las filas cuyo valor es `Abierta` entran al tablero y a todos los cruces. Se excluyen cierres temporales, definitivos, próximas aperturas y estatus vacíos. Si falta Estatus, no se publica una selección supuesta.
+El nombre de la tienda puede venir en `Tienda` o `CC Nombre`. Se admiten diferencias de acentos, espacios y mayúsculas en los encabezados. No se acepta una columna ambigua ni un CC abierto duplicado.
+Las fechas de apertura admiten fechas de Excel, números de serie, `DD/MM/YYYY` y `DD/MM/YY`, incluso con espacios alrededor de `/`. Los años de dos dígitos usan la convención 00–68 = 2000–2068 y 69–99 = 1969–1999. Las fechas inválidas quedan en blanco y se auditan.
 Actualiza altas/bajas aquí primero. Los filtros Tienda, DM y Región se generan dinámicamente.
 `Tienda` y `Nombre APP y Signage` funcionan como alias; sólo se usa un alias si coincide con un único CeCo.
 Base_Mix.csv
@@ -27,9 +30,13 @@ Ejecuta `split_mix.py`; genera una parte por mes y `mix/manifest.json` con filas
 No renombres ni edites manualmente las partes. El build comprueba el checksum antes de usarlas.
 Si una parte llegara a 24 MB, el script se detiene para evitar un archivo incompatible con GitHub Web.
 Query.xlsx
-Hoja obligatoria `Query`.
-Requiere `NUM_EMP`, `NOM_PUESTO`, `SEXO`, `F.NAC`, `F_INGRESO`, `cc` y `STATUS_ EMP (ACTIVO/BAJA)`.
-Deduplica por `cc + NUM_EMP` y resume sólo partners activos.
+Hoja `Query` o `query`, sin distinguir mayúsculas. Se requiere un identificador de empleado (`NUM_EMP`) y un centro de costo (`cc`, `CeCo` o `CCOSTO`).
+Sólo `CCOSTO`/`Centro de Costo` admite el formato compuesto distrito de 3 dígitos + CeCo de 5; un valor numérico de 7 dígitos se completa con el cero inicial perdido en Excel. El CeCo resultante debe existir como Abierta en el Directorio; no se cruza por semejanza de nombres.
+Para identificar activos se requiere `STATUS_ EMP (ACTIVO/BAJA)` o `F_BAJA`. `INACTIVO` no se interpreta como `ACTIVO`. Con `F_BAJA`, sólo se incluyen personas sin baja al corte y cuyo ingreso no sea posterior al corte; una fecha de baja inválida o un estatus desconocido se excluye del conteo.
+`CORTE DE INFORMACIÓN` seguido de una fecha define el corte de personal. Activos, edades, antigüedad, cumpleaños y aniversarios se calculan a esa fecha, que se muestra en Equipo. Si no existe, se informa que se usó la fecha de construcción.
+`NOM_PUESTO`, `SEXO`, `F.NAC` y `F_INGRESO` son opcionales. Sin estos campos, sólo sus métricas quedan vacías. Los promedios usan únicamente personas con la fecha válida; el porcentaje de mujeres usa el sexo informado.
+Deduplica por identificador de empleado: repeticiones idénticas se cuentan una vez; asignaciones contradictorias se excluyen y se auditan. El JSON público sólo contiene resúmenes por tienda, sin nombres de empleados, identificadores ni fechas individuales de nacimiento.
+Perfil, Negocio y Mix conservan sus propios meses disponibles. Mix muestra los meses que efectivamente contienen información; una tienda o un periodo sin datos se presenta vacío, sin convertirlo en cero.
 Checklist antes de publicar
 ```bash
 python scripts/check_file_sizes.py
