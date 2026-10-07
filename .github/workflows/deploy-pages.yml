@@ -9,9 +9,12 @@ on:
       - "data/engines/**"
       - "data/audit.json"
       - "data/dashboard.json"
+      - "data/exports.json"
       - "scripts/**"
       - "tests/**"
       - "app.js"
+      - "exports.js"
+      - "exports.css"
       - "index.html"
       - "manifest.webmanifest"
       - "operational.css"
@@ -55,6 +58,9 @@ jobs:
       - name: Auditar motores y construir contrato
         run: python scripts/build_data.py
 
+      - name: Compilar exportaciones por tienda, DM y región
+        run: python scripts/build_exports.py
+
       - name: Ejecutar pruebas funcionales
         run: |
           python -m pip check
@@ -68,6 +74,8 @@ jobs:
           test -f dist/index.html
           test -f dist/data/dashboard.json
           test -f dist/data/audit.json
+          test -f dist/data/exports.json
+          test -f dist/exports.js
           test -f dist/.nojekyll
           test ! -d dist/data/engines
 
