@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/deploy-pages.yml"
+      - ".github/workflows/cleanup-obsolete.yml"
       - "assets/**"
       - "data/engines/**"
       - "data/audit.json"
@@ -51,6 +52,9 @@ jobs:
 
       - name: Instalar validador
         run: python -m pip install --disable-pip-version-check --requirement requirements-validation.txt
+
+      - name: Auditar referencias y retirar legados del artefacto
+        run: python scripts/cleanup_obsolete.py --apply --check-clean
 
       - name: Validar límite de archivos
         run: python scripts/check_file_sizes.py

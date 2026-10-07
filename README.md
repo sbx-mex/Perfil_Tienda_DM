@@ -55,6 +55,7 @@ Consulta [data/engines/INSTRUCCIONES_ACTUALIZACION.md](data/engines/INSTRUCCIONE
 
 ```bash
 python scripts/build_data.py
+python scripts/build_exports.py
 python -m http.server 8000
 ```
 
@@ -62,6 +63,12 @@ Abre `http://localhost:8000`.
 
 ## Limpieza del proyecto anterior
 
-Ejecuta manualmente el workflow **Eliminar archivos legados autorizados**. Audita las referencias, borra únicamente las rutas de `scripts/obsolete-files.json` y registra un commit sólo cuando existe una eliminación real.
+El workflow **Eliminar archivos legados autorizados** se ejecuta al actualizar su script o manifiesto, al reintroducir un legado y después de una publicación correcta en `main`. También puede ejecutarse desde Actions de forma manual.
+
+Python revisa las dependencias de HTML, JavaScript, CSS, manifest y los motores antes de retirar únicamente las rutas de `scripts/obsolete-files.json`. Bloquea archivos todavía referenciados, rutas fuera del proyecto, directorios y enlaces simbólicos. Si falla una retirada, revierte las anteriores.
+
+El workflow reconstruye los datos y exportaciones, ejecuta las pruebas y prepara el sitio mínimo antes de registrar las eliminaciones. Sólo incluye archivos eliminados en su commit y cancela si `main` cambia durante la validación. Actions muestra cuántos archivos se retiraron; una ejecución sin legados presentes conserva el repositorio.
+
+Comprobación local: `python scripts/cleanup_obsolete.py --check-clean`. Aplicación local: `python scripts/cleanup_obsolete.py --apply --check-clean`. El despliegue también retira los legados de su copia de trabajo antes de generar el artefacto publicado.
 
 La limpieza incluye los archivos históricos de raíz `Store_Master_Audit.csv`, `data.js`, `README.txt`, `manifest.json`, `style.css` y los iconos duplicados. Conserva `styles.css`, `manifest.webmanifest` y `assets/`.
