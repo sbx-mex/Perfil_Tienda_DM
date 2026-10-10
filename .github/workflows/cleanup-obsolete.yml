@@ -59,18 +59,16 @@ jobs:
       - name: Instalar validador
         run: python -m pip install --disable-pip-version-check --requirement requirements-validation.txt
 
+      - name: Configurar Node para las pruebas de la aplicación
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+
       - name: Auditar referencias y retirar sólo legados autorizados
         run: python scripts/cleanup_obsolete.py --apply --check-clean --report "$RUNNER_TEMP/cleanup-report.json"
 
       - name: Verificar motores, exportaciones y funcionamiento después de limpiar
-        run: |
-          python scripts/check_file_sizes.py
-          python scripts/build_data.py
-          python scripts/build_exports.py
-          python -m pip check
-          python -m unittest discover -s tests -v
-          python scripts/stage_site.py --output dist
-          python scripts/cleanup_obsolete.py --check-clean
+        run: python scripts/validate_project.py --report "$RUNNER_TEMP/validation-report.json"
 
       - name: Mostrar resultado de la limpieza
         run: |

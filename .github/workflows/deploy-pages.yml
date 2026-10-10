@@ -22,6 +22,8 @@ on:
       - "requirements-validation.txt"
       - "styles.css"
       - "sw.js"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -30,7 +32,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: perfil-tienda-pages
+  group: perfil-tienda-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -53,45 +55,26 @@ jobs:
       - name: Instalar validador
         run: python -m pip install --disable-pip-version-check --requirement requirements-validation.txt
 
-      - name: Auditar referencias y retirar legados del artefacto
-        run: python scripts/cleanup_obsolete.py --apply --check-clean
+      - name: Configurar Node para las pruebas de la aplicación
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
 
-      - name: Validar límite de archivos
-        run: python scripts/check_file_sizes.py
-
-      - name: Auditar motores y construir contrato
-        run: python scripts/build_data.py
-
-      - name: Compilar exportaciones por tienda, DM y región
-        run: python scripts/build_exports.py
-
-      - name: Ejecutar pruebas funcionales
-        run: |
-          python -m pip check
-          python -m unittest discover -s tests -v
-
-      - name: Preparar sitio mínimo
-        run: python scripts/stage_site.py --output dist
-
-      - name: Validar artefacto
-        run: |
-          test -f dist/index.html
-          test -f dist/data/dashboard.json
-          test -f dist/data/audit.json
-          test -f dist/data/exports.json
-          test -f dist/exports.js
-          test -f dist/.nojekyll
-          test ! -d dist/data/engines
+      - name: Validar carga completa con Python
+        run: python scripts/validate_project.py --report "$RUNNER_TEMP/validation-report.json"
 
       - name: Configurar GitHub Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
       - name: Subir artefacto
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
