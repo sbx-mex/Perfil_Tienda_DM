@@ -1,0 +1,75 @@
+PERFIL_TIENDA_DM — CORRECCIÓN DE CARGA PYTHON
+Repositorio: https://github.com/sbx-mex/Perfil_Tienda_DM
+Base auditada: be38433334b860d804c0cc9346094956ae135118
+
+INSTALACIÓN
+1. Descomprime este ZIP.
+2. En el repositorio existente, agrega/reemplaza exactamente los archivos de
+   .github/workflows/, scripts/ y tests/, conservando sus rutas. La carpeta
+   .github contiene los dos workflows y también debe cargarse.
+3. Conserva todos los motores de data/engines y el resto de la aplicación.
+   El Excel actualizado ya coincide con el archivo adjunto.
+4. En Settings > Pages, selecciona Source: GitHub Actions para que se publique
+   el artefacto validado. La captura y el historial muestran que la publicación
+   automática de Pages avanzó mientras la validación propia fallaba.
+5. El commit en main activa "Validar y publicar Perfil de Tienda". También
+   puedes ejecutarlo desde Actions > Run workflow. Revisa sus diez comprobaciones.
+6. "Eliminar archivos legados autorizados" se ejecuta después de una publicación
+   correcta y también admite ejecución manual. Registra únicamente eliminaciones
+   de la lista autorizada después de reconstruir y comprobar el funcionamiento.
+
+COMPROBACIÓN LOCAL (DESDE LA RAÍZ DEL REPOSITORIO)
+Python 3.12 y Node.js 24 (el validador admite Node.js >=22).
+
+python -m pip install -r requirements-validation.txt
+python scripts/validate_project.py --report ../resultado-validacion.json
+
+El comando sale con 0 sólo cuando las diez etapas pasan. Si una etapa falla,
+marca ROJO, omite las siguientes, escribe el motivo y sale con 1.
+La ubicación del reporte debe quedar fuera del repositorio.
+
+QUÉ SE CORRIGIÓ
+- Una prueba fija esperaba septiembre vacío y fallaba al recibir valores reales.
+  Ahora comprueba todos los meses presentes, IPLH/TPLH, ceros, referencias ausentes
+  y datos faltantes. Incluye incorporación de un periodo futuro.
+- Ambos workflows usan el mismo comando Python y Node.js 24 explícito.
+- La auditoría verifica SHA-256 de los motores, coincidencia de periodos y fecha
+  de construcción, tiendas abiertas, cobertura y reportes completos por alcance.
+- El artefacto sólo contiene los 19 archivos necesarios del sitio y debe coincidir
+  con las fuentes validadas. Los motores crudos quedan fuera de la publicación.
+- Las solicitudes de cambio se validan antes de publicar y no despliegan Pages.
+
+RESULTADO COMPROBADO
+80 pruebas Python correctas, incluyendo las suites JavaScript de exportación y
+estabilidad. 964 tiendas abiertas, meses enero–septiembre y 1,053 alcances:
+964 Tienda, 78 DM y 11 Región. Cero errores bloqueantes.
+El Excel auditado contiene 8,602 filas sin llaves Mes/CeCo duplicadas.
+La limpieza encontró cero obsoletos presentes de la lista autorizada.
+
+AVISOS REALES DE ORIGEN QUE SE CONSERVAN
+- No vienen Ticket Prom Ppto ni Var Ticket vs Ppto (%): permanecen en blanco.
+- Negocio: 52 CeCo sin cruce.
+- Mix: 252 nombres sin coincidencia exacta única.
+Estos avisos no son fallas del pipeline. No se fabrican datos ni se ocultan avisos.
+
+ARCHIVOS DE CORRECCIÓN (5)
+.github/workflows/deploy-pages.yml
+.github/workflows/cleanup-obsolete.yml
+scripts/validate_project.py
+tests/exports.test.cjs
+tests/test_validation.py
+
+Este ZIP es un parche para el repositorio existente. El script de limpieza y su
+manifiesto ya forman parte del repositorio y son reutilizados por el workflow.
+LEEME_CARGA_CORRECTA.txt y RESULTADO_AUDITORIA.json documentan la instalación y la
+validación y no son necesarios para ejecutar la aplicación.
+
+ALCANCE DE LA VALIDACIÓN
+Se reprodujo el fallo del workflow remoto y se verificó la corrección localmente
+con los motores reales. No se modificó ni se desplegó main. El estado en GitHub
+se actualizará después de cargar este parche y concluir sus workflows.
+
+COMPROBACIÓN DEL ZIP
+Se aplicaron exactamente sus cinco archivos sobre una copia limpia del commit
+original. Las diez etapas y las 80 pruebas volvieron a pasar, con el artefacto
+completo y sin depender de archivos de trabajo adicionales.

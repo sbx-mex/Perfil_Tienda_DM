@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-10-10T04:51:26.329519+00:00",
+  "status": "VERDE",
+  "steps": [
+    {
+      "name": "entorno",
+      "status": "VERDE",
+      "seconds": 0.006
+    },
+    {
+      "name": "dependencias",
+      "status": "VERDE",
+      "seconds": 0.306
+    },
+    {
+      "name": "limpieza",
+      "status": "VERDE",
+      "seconds": 0.101
+    },
+    {
+      "name": "tamano_archivos",
+      "status": "VERDE",
+      "seconds": 0.033
+    },
+    {
+      "name": "carga_python",
+      "status": "VERDE",
+      "seconds": 15.731
+    },
+    {
+      "name": "exportaciones",
+      "status": "VERDE",
+      "seconds": 2.311
+    },
+    {
+      "name": "contrato_y_huellas",
+      "status": "VERDE",
+      "seconds": 0.482
+    },
+    {
+      "name": "pruebas_funcionales",
+      "status": "VERDE",
+      "seconds": 20.294
+    },
+    {
+      "name": "preparar_sitio",
+      "status": "VERDE",
+      "seconds": 0.279
+    },
+    {
+      "name": "artefacto",
+      "status": "VERDE",
+      "seconds": 0.029
+    }
+  ],
+  "runtime": {
+    "python": "3.12.14",
+    "node": "v24.19.0"
+  },
+  "cleanup": {
+    "schemaVersion": 1,
+    "mode": "apply",
+    "approved": [
+      "data.js",
+      "Store_Master_Audit.csv",
+      "README.txt",
+      "manifest.json",
+      "apple-touch-icon.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon.svg",
+      "style.css",
+      "data/engines/Base_Mix.csv"
+    ],
+    "removed": [],
+    "remaining": [],
+    "missing": [
+      "data.js",
+      "Store_Master_Audit.csv",
+      "README.txt",
+      "manifest.json",
+      "apple-touch-icon.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon.svg",
+      "style.css",
+      "data/engines/Base_Mix.csv"
+    ],
+    "references": [],
+    "checkedSources": [
+      "app.js",
+      "assets/vendor/jszip-3.10.1.min.js",
+      "assets/vendor/pdf-lib-1.17.1.min.js",
+      "exports.css",
+      "exports.js",
+      "index.html",
+      "manifest.webmanifest",
+      "operational.css",
+      "scripts/build_data.py",
+      "scripts/build_exports.py",
+      "scripts/stage_site.py",
+      "styles.css",
+      "sw.js"
+    ]
+  },
+  "data": {
+    "generatedAt": "2026-10-10T04:51:42.080676+00:00",
+    "stores": 964,
+    "months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "profileRows": 8602,
+    "scopes": {
+      "store": 964,
+      "dm": 78,
+      "region": 11
+    },
+    "sourceCount": 9,
+    "issueCount": 0,
+    "warningCount": 3,
+    "warnings": [
+      "Ticket: referencias opcionales ausentes (Ticket Prom Ppto, Var Ticket vs Ppto (%)); se muestran en blanco.",
+      "Negocio: 52 CeCo sin cruce; se dejaron en blanco.",
+      "Mix: 252 nombres sin coincidencia exacta única; se dejaron en blanco."
+    ]
+  },
+  "tests": {
+    "python": 80,
+    "failures": 0
+  },
+  "artifact": {
+    "files": 19,
+    "bytes": 13363467,
+    "rawEnginesPublished": false
+  },
+  "finishedAt": "2026-10-10T04:52:05.900295+00:00",
+  "scope": "Validación local; no se modificó ni publicó main en GitHub.",
+  "repository": "sbx-mex/Perfil_Tienda_DM",
+  "baseCommit": "be38433334b860d804c0cc9346094956ae135118",
+  "originalFailedRun": "https://github.com/sbx-mex/Perfil_Tienda_DM/actions/runs/38024724382",
+  "rootCause": "La prueba de exportación asumía que septiembre estaba vacío. El Excel actualizado contiene valores reales de septiembre.",
+  "patchFiles": [
+    {
+      "file": ".github/workflows/deploy-pages.yml",
+      "bytes": 2350,
+      "sha256": "c04cfa22e4e67bb4b42dbdc292c9c3991baa2e756bdd2ea8c3d4676522a4e364"
+    },
+    {
+      "file": ".github/workflows/cleanup-obsolete.yml",
+      "bytes": 4361,
+      "sha256": "713ecd96702f4342e591c531438d086491df64b5da51132104b9f0085a2e3479"
+    },
+    {
+      "file": "scripts/validate_project.py",
+      "bytes": 13815,
+      "sha256": "2a616eae7d94d1c33dd0b58165f0a28a48c6c7e3f2a97db4dcb22ab0f701b41a"
+    },
+    {
+      "file": "tests/exports.test.cjs",
+      "bytes": 8718,
+      "sha256": "bed7e1b67d49e751fe7f719d16bd88260a2b8de4855a22cb03feb8c9793f766b"
+    },
+    {
+      "file": "tests/test_validation.py",
+      "bytes": 9501,
+      "sha256": "2251576cb3d7bfc3c0006c7744e4eaa178c4c0014a6369d9aac210eeb797bb24"
+    }
+  ],
+  "zipApplicationVerified": {
+    "result": "VERDE",
+    "baseCommit": "be38433334b860d804c0cc9346094956ae135118",
+    "patchFilesApplied": 5,
+    "stepsPassed": 10,
+    "pythonTestsPassed": 80
+  },
+  "workbookAudit": {
+    "sourceSha256": "c226aaa363dcb195ddea12c66d8d6ed942f27418a9f6107849e615ffe1316758",
+    "rows": 8602,
+    "months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "duplicateMonthCeCoKeys": 0,
+    "excelErrorValues": 0,
+    "attachmentMatchesRepository": true
+  }
+}

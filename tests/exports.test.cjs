@@ -21,10 +21,52 @@ test('one group per pillar and YTD rules preserve null months',()=>{
   assert.equal(r.groups[2].metrics.find(m=>m.id==='ticket').budget,null);
 });
 test('month selection and productivity follow the visible choices',()=>{
-  const r=api.report(data,{...current,productivity:'TPLH'},['Partner'],'9');
-  assert.equal(r.groups[0].metrics.find(m=>m.id==='tplh').status,'Sin dato');
-  assert.equal(r.groups[0].metrics.some(m=>m.id==='productividad'),false);
-  assert.equal(r.groups[0].metrics[0].actual,null);
+  // El motor puede incorporar septiembre y meses posteriores sin cambiar la prueba.
+  const source=data.reports.store[current.selection].series;
+  for(const [index,month] of data.months.entries()){
+    const r=api.report(data,{...current,productivity:'TPLH'},['Partner'],String(month.id));
+    const tplh=r.groups[0].metrics.find(m=>m.id==='tplh');
+    assert.equal(tplh.actual,source.tplh[index][0],month.label);
+    assert.equal(tplh.reference,source.tplh[index][1],month.label);
+    assert.equal(tplh.budget,source.tplh[index][2],month.label);
+    assert.equal(r.groups[0].metrics.some(m=>m.id==='productividad'),false);
+    assert.equal(r.groups[0].metrics.find(m=>m.id==='rotacion').actual,source.rotacion[index][0]);
+    const iplh=api.report(data,current,['Partner'],String(month.id));
+    assert.equal(iplh.groups[0].metrics.find(m=>m.id==='productividad').actual,source.productividad[index][0]);
+    assert.equal(iplh.groups[0].metrics.some(m=>m.id==='tplh'),false);
+  }
+});
+test('a missing month stays neutral, zero is data and a missing reference stays neutral',()=>{
+  const changed=JSON.parse(JSON.stringify(data));
+  const index=changed.months.length-1,period=String(changed.months[index].id);
+  const source=changed.reports.store[current.selection].series;
+  source.tplh[index]=[null,null,null,0,0,0];
+  source.rotacion[index]=[null,null,null,0,0,0];
+  let r=api.report(changed,{...current,productivity:'TPLH'},['Partner'],period);
+  let tplh=r.groups[0].metrics.find(m=>m.id==='tplh');
+  assert.equal(tplh.actual,null);assert.equal(tplh.delta,null);assert.equal(tplh.status,'Sin dato');
+  assert.equal(r.groups[0].metrics.find(m=>m.id==='rotacion').actual,null);
+  source.tplh[index]=[0,0,null,1,1,0];
+  r=api.report(changed,{...current,productivity:'TPLH'},['Partner'],period);
+  tplh=r.groups[0].metrics.find(m=>m.id==='tplh');
+  assert.equal(tplh.actual,0);assert.equal(tplh.reference,0);assert.equal(tplh.delta,0);assert.equal(tplh.status,'Favorable');
+  source.tplh[index]=[10,null,null,1,0,0];
+  r=api.report(changed,{...current,productivity:'TPLH'},['Partner'],period);
+  tplh=r.groups[0].metrics.find(m=>m.id==='tplh');
+  assert.equal(tplh.actual,10);assert.equal(tplh.reference,null);assert.equal(tplh.delta,null);assert.equal(tplh.status,'Sin comparación');
+});
+test('adding a future reporting month preserves the selected real and reference values',()=>{
+  const changed=JSON.parse(JSON.stringify(data));
+  const last=Math.max(...changed.months.map(m=>m.id)),next=last<12?last+1:1;
+  const year=Number(changed.months.at(-1).period.slice(0,4))+(last===12?1:0);
+  const source=changed.reports.store[current.selection].series;
+  if(last===12){changed.months=[];for(const series of Object.values(source))series.length=0;}
+  changed.months.push({id:next,period:`${year}${String(next).padStart(2,'0')}`,label:'Periodo de prueba',short:'Prueba'});
+  for(const series of Object.values(source))series.push([null,null,null,0,0,0]);
+  source.tplh.at(-1).splice(0,6,7,6,null,1,1,0);
+  const updated={...current,productivity:'TPLH',data:{...dashboard,months:changed.months}};
+  const tplh=api.report(changed,updated,['Partner'],String(next)).groups[0].metrics.find(m=>m.id==='tplh');
+  assert.equal(tplh.actual,7);assert.equal(tplh.reference,6);assert.equal(tplh.delta,1);assert.equal(tplh.status,'Favorable');
 });
 test('different construction, invalid period and missing scope are blocked',()=>{
   assert.throws(()=>api.report({...data,generatedAt:'old'},current,['Partner']));
